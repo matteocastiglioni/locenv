@@ -1,0 +1,21 @@
+#!/bin/bash
+
+docker build -t local:1.0 .
+
+binPath=.bin
+mkdir -p $binPath
+chown $SUDO_USER:$SUDO_USER $binPath
+
+commands=("composer" "php" "node" "npm" "npx")
+
+for value in "${commands[@]}"
+do
+    executablePath=./$binPath/$value
+
+    printf "#!/bin/sh\ndocker run --rm -u \$(id -u):\$(id -g) -v .:/usr/src/app -w /usr/src/app -e SHELL=/bin/sh local:1.0 %s \"\$@\"\n" $value > $executablePath
+
+    chmod +x $executablePath
+    chown $SUDO_USER:$SUDO_USER $executablePath
+
+    ln -sf $PWD/$binPath/$value /usr/local/bin/$value
+done
