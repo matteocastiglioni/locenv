@@ -1,2 +1,13 @@
 #!/bin/sh
-docker run --rm -u $(id -u):$(id -g) -v .:/usr/src/app -w /usr/src/app -e SHELL=/bin/sh local:1.0 php "$@"
+
+user="-u $(id -u):$(id -g) "
+
+for arg in "$@"; do
+	case $arg in
+		"--int") interactive="-it ";;
+		"--root") user="";;
+		*) command="$command $arg";;
+	esac
+done
+
+docker run --rm $interactive$user-P -v .:/usr/src/app -w /usr/src/app -e SHELL=/bin/sh local:1.0 php$command

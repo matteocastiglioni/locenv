@@ -1,10 +1,15 @@
 #!/bin/bash
 
-docker build -t local:1.0 .
+docker build --no-cache -t local:1.0 .
 
 binPath=.bin
 mkdir -p $binPath
 chown $SUDO_USER:$SUDO_USER $binPath
+
+create_or_overwrite_ln_and_prompt() {
+    ln -sf $PWD/$1/$2 /usr/local/bin/$2
+    echo "Command \"$2\" $3"
+}
 
 commands=("composer" "php" "node" "npm" "npx")
 
@@ -12,10 +17,16 @@ for value in "${commands[@]}"
 do
     executablePath=./$binPath/$value
 
-    printf "#!/bin/sh\ndocker run --rm -u \$(id -u):\$(id -g) -v .:/usr/src/app -w /usr/src/app -e SHELL=/bin/sh local:1.0 %s \"\$@\"\n" $value > $executablePath
+    printf "#!/bin/sh\n\nuser=\"-u \$(id -u):\$(id -g) \"\n\nfor arg in \"\$@\"; do\n\tcase \$arg in\n\t\t\"--int\") interactive=\"-it \";;\n\t\t\"--root\") user=\"\";;\n\t\t*) command=\"\$command \$arg\";;\n\tesac\ndone\n\ndocker run --rm \$interactive\$user-P -v .:/usr/src/app -w /usr/src/app -e SHELL=/bin/sh local:1.0 %s\$command\n" $value > $executablePath
 
     chmod +x $executablePath
     chown $SUDO_USER:$SUDO_USER $executablePath
 
-    ln -sf $PWD/$binPath/$value /usr/local/bin/$value
+    if [ -e /usr/local/bin/$value ]; then
+        read -p "Command \"/usr/local/bin/$value\" already exists, do you want to overwrite it? [y/N] " confirm
+
+        if [ "$confirm" == "y" ]; then create_or_overwrite_ln_and_prompt $binPath $value 'overwritten'; fi
+    else
+        create_or_overwrite_ln_and_prompt $binPath $value 'created'
+    fi
 done
