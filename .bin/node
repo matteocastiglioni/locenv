@@ -1,13 +1,23 @@
 #!/bin/sh
 
+# detect if in interactive shell
+[ -t 0 ] && interactive="-it "
+
 user="-u $(id -u):$(id -g) "
 
-for arg in "$@"; do
-    case $arg in
-        "--int") interactive="-it ";;
-        "--root") user="";;
-        *) command="$command $arg";;
+while [ $# -gt 0 ]
+do
+    case $1 in
+        -i|--int) interactive="-it " ;;
+        -r|--root) user="" ;;
+        -p|--port)
+            port="-p $2:$2 "
+            shift
+            ;;
+        *) args="$args $1" ;;
     esac
+
+    shift
 done
 
-docker run --rm $interactive$user-P -v .:$PWD -w $PWD -e SHELL=/bin/sh node_local:1.0 node$command
+docker run --rm $interactive$user$port-P -v .:$PWD -w $PWD -e SHELL=/bin/sh node_local:1.0 node$args
