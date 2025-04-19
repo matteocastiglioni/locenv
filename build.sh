@@ -1,114 +1,141 @@
 #!/bin/bash
 
-php_version=""
-node_version=""
-composer_version=""
-docker_config_file="$HOME/.docker/config.json"
+# Definizione degli script wrapper
+STANDARD_WRAPPER='#!/bin/sh
 
-help() {
-    echo "
-Usage: bash build.sh [OPTIONS]
+user="-u $(id -u):$(id -g)"
+interactive=""
+command=""
 
-Options:
-    -b      Build images
-    -p      PHP version (default 8.1-alpine)
-    -n      NodeJS version (default lts-alpine)
-    -c      Composer version (default lts)
-    -h      This help
-"
-    exit 0
-}
-
-# checks if the shell is bash and if at least one argument is present
-if [ ! -z "$(type -p)" -o "$#" = 0 ]; then help; fi
-
-while getopts ":bp:n:c:h" flag
-do
-    case $flag in
-        b)
-            if [ ! -f $docker_config_file ]
-            then
-                case $(uname | tr '[:upper:]' '[:lower:]') in
-                    linux*)
-                        creds_store="wincred.exe"
-                    ;;
-                    darwin*) # OSX
-                        creds_store="osxkeychain"
-                    ;;
-                    *)
-                        echo "Unknown OS"
-                        exit 1
-                    ;;
-                esac
-
-                printf "{
-    \"auths\": {
-        \"https://index.docker.io/v1/\": {}
-    },
-    \"credsStore\": \"$creds_store\"
-}
-" > $docker_config_file
-
-                chown $SUDO_USER:$SUDO_USER $docker_config_file
-            else
-                if ! grep -q 'credsStore' $docker_config_file || ! grep -q 'auths' $docker_config_file
-                then
-                    echo "Missing \"auths\" or \"credsStore\" on $docker_config_file"
-                    exit 1
-                fi
-            fi
-
-            # docker build --no-cache -t local:1.0 .
-            DOCKER_BUILDKIT=1 docker build --no-cache --target php  $php_version -t php_local:1.0 .
-            DOCKER_BUILDKIT=1 docker build --no-cache --target node $node_version -t node_local:1.0 .
-            DOCKER_BUILDKIT=1 docker build --no-cache --target composer $composer_version -t composer_local:1.0 .
-        ;;
-        p) php_version="--build-arg php_version=\"${OPTARG}\"" ;;
-        n) node_version="--build-arg node_version=\"${OPTARG}\"" ;;
-        c) composer_version="--build-arg composer_version=\"${OPTARG}\"" ;;
-        h|*) help ;;
+for arg in "$@"; do
+    case $arg in
+        "--int") interactive="-it";;
+        "--root") user="";;
+        *) command="$command $arg";;
     esac
 done
+
+docker run --rm $interactive $user -P \
+    -v .:$PWD \
+    -w $PWD \
+    -e SHELL=/bin/sh \
+    %s_local:1.0 \
+    %s $command'
+
+OLLAMA_WRAPPER='#!/bin/sh
+
+if ! command -v nvidia-ctk >/dev/null 2>&1; then
+    echo "nvidia-ctk command not found. Installing NVIDIA Container Toolkit ..."
+
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+    | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+    | sed "s#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g" \
+    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+    sudo apt-get update
+    sudo apt-get install -y nvidia-container-toolkit
+    sudo nvidia-ctk runtime configure --runtime=docker
+    sudo systemctl restart docker
+fi
+
+# Show help if no command is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: ollama COMMAND"
+    echo ""
+    echo "Commands:"
+    echo "  serve       Start ollama"
+    echo "  create      Create a model from a Modelfile"
+    echo "  show        Show information for a model"
+    echo "  run         Run a model"
+    echo "  stop        Stop a running model"
+    echo "  pull        Pull a model from a registry"
+    echo "  push        Push a model to a registry"
+    echo "  list        List models"
+    echo "  ps          List running models"
+    echo "  cp          Copy a model"
+    echo "  rm          Remove a model"
+    echo "  help        Help about any command"
+    exit 0
+fi
+
+if [ "$1" = "serve" ]; then
+    if ! docker ps -q -f name=ollama | grep -q .; then
+        docker run -d --gpus=all -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+    else
+        echo "Ollama service is already running."
+    fi
+    
+    exit 0
+fi
+
+docker exec -it ollama ollama "$@"'
+
+# Definisci un array associativo per tutti i comandi e le loro configurazioni
+declare -A commands=(
+    ["php"]="version=8-alpine;build=true"
+    ["node"]="version=lts-alpine;build=true"
+    ["npm"]="version=lts-alpine;build=false;use=node"
+    ["npx"]="version=lts-alpine;build=false;use=node"
+    ["composer"]="version=lts;build=true"
+    ["git"]="version=2.47.2;build=true"
+    ["python"]="version=3-alpine;build=true"
+    ["ollama"]="version=;build=false"
+)
 
 binPath=.bin
 mkdir -p $binPath
 chown $SUDO_USER:$SUDO_USER $binPath
 
-commands=("composer" "php" "node" "npm" "npx")
-
-for command in "${commands[@]}"
+# Build docker images e genera gli script wrapper
+for command in "${!commands[@]}"
 do
+    # Parse command settings
+    IFS=';' read -r -a settings <<< "${commands[$command]}"
+    build="false"
+    version=""
+    use=""
+    
+    for setting in "${settings[@]}"
+    do
+        key="${setting%%=*}"
+        value="${setting#*=}"
+        case "$key" in
+            "version") version="$value" ;;
+            "build") build="$value" ;;
+            "use") use="$value" ;;
+        esac
+    done
+
+    # Build docker image se necessario
+    if [ "$build" = "true" ]; then
+        docker build --no-cache \
+            --target "$command" \
+            --build-arg VERSION="$version" \
+            -t "${command}_local:1.0" .
+    fi
+
+    # Genera script wrapper
     executablePath=./$binPath/$command
 
-    if [ ${command} = "npm" -o ${command} = "npx" ]; then image="node"; else image="$command"; fi
+    # Determina quale immagine usare
+    if [ -n "$use" ]; then
+        image="$use"
+    else
+        image="$command"
+    fi
 
-    printf "#!/bin/sh
+    if [ "$command" = "ollama" ]; then
+        printf "%s" "$OLLAMA_WRAPPER" > "$executablePath"
+    elif [ "$command" = "git" ]; then
+        printf "$STANDARD_WRAPPER" "$image" "" > "$executablePath"
+    else
+        printf "$STANDARD_WRAPPER" "$image" "$image" > "$executablePath"
+    fi
 
-# detect if in interactive shell
-[ -t 0 ] && interactive=\"-it \"
-
-user=\"-u \$(id -u):\$(id -g) \"
-
-while [ \$# -gt 0 ]
-do
-    case \$1 in
-        -i|--int) interactive=\"-it \" ;;
-        -r|--root) user=\"\" ;;
-        -p|--port)
-            port=\"-p \$2:\$2 \"
-            shift
-            ;;
-        *) args=\"\$args \$1\" ;;
-    esac
-
-    shift
-done
-
-docker run --rm \$interactive\$user\$port-P -v .:\$PWD -w \$PWD -e SHELL=/bin/sh ${image}_local:1.0 %s\$args
-" $command > $executablePath
-
-    chmod +x $executablePath
-    chown $SUDO_USER:$SUDO_USER $executablePath
+    chmod +x "$executablePath"
+    chown "$SUDO_USER:$SUDO_USER" "$executablePath"
 done
 
 case $(uname | tr '[:upper:]' '[:lower:]') in

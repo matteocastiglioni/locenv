@@ -1,19 +1,9 @@
-ARG php_version="8.1-alpine"
-ARG node_version="lts-alpine"
-ARG composer_version="lts"
+ARG VERSION="latest"
 
-FROM php:${php_version} as php
+FROM php:${VERSION} AS php
 
-# vite dev
-EXPOSE 5173
-# vite preview
-EXPOSE 4173
-# http
-EXPOSE 80
-# https
-EXPOSE 443
-# laravel serve
-EXPOSE 8000
+# Install PHP extensions
+# RUN docker-php-ext-install pdo_mysql mbstring
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
@@ -30,31 +20,13 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 #   && pecl install mongodb \
 #   && echo "extension=mongodb.so" >> `php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||"`
 
-FROM node:${node_version} as node
+FROM node:${VERSION} AS node
 
-# vite dev
-EXPOSE 5173
-# vite preview
-EXPOSE 4173
-# http
-EXPOSE 80
-# https
-EXPOSE 443
-# laravel serve
-EXPOSE 8000
+FROM composer:${VERSION} AS composer
 
-# RUN apt-get install -y git \
-#     && git config --global --add safe.directory "*"
+FROM alpine/git:${VERSION} AS git
+RUN git config --global --add safe.directory "*"
 
-FROM composer:${composer_version} as composer
+FROM python:${VERSION} AS python
 
-# vite dev
-EXPOSE 5173
-# vite preview
-EXPOSE 4173
-# http
-EXPOSE 80
-# https
-EXPOSE 443
-# laravel serve
-EXPOSE 8000
+EXPOSE 5173 4173 80 443 8000
