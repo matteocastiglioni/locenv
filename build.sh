@@ -3,16 +3,16 @@
 STANDARD_WRAPPER='#!/bin/sh
 
 # detect if in interactive shell
-[ -t 0 ] && interactive="-it "
+[ -t 0 ] && interactive="-it"
 
 user="-u $(id -u):$(id -g)"
 
 while [ $# -gt 0 ]
 do
     case $1 in
-        -i|--int) interactive="-it";;
-        -r|--root) user="";;
-        -p|--port)
+        --int) interactive="-it";;
+        --root) user="";;
+        --port)
             port="-p $2:$2"
             shift
             ;;
@@ -101,7 +101,8 @@ declare -A commands=(
     ["npx"]="version=lts-alpine;build=false;use=node"
     ["composer"]="version=lts;build=true"
     ["git"]="version=2.47.2;build=true"
-    ["python"]="version=3-alpine;build=true"
+    ["python"]="version=3.12-slim;build=true"
+    ["pip"]="version=3.12-slim;build=false;use=python"
     ["ollama"]="version=;build=false"
 )
 
@@ -147,70 +148,44 @@ do
     elif [ "$command" = "git" ]; then
         printf "$STANDARD_WRAPPER" "$image" "" > "$executablePath"
     else
-        printf "$STANDARD_WRAPPER" "$image" "$image" > "$executablePath"
+        printf "$STANDARD_WRAPPER" "$image" "$command" > "$executablePath"
     fi
 
     chmod +x "$executablePath"
     chown "$SUDO_USER:$SUDO_USER" "$executablePath"
 done
 
-case $(uname | tr '[:upper:]' '[:lower:]') in
-	linux*)
-		if [[ $(lsb_release -d | awk -F"\t" '{print $2}' | awk -F " " '{print $1}' | tr '[:upper:]' '[:lower:]') == 'ubuntu' ]]
-        then
-            LOCAL_BIN_PATH=$PWD/$binPath
-
-            if ! grep -q "export PATH=\$PATH:$LOCAL_BIN_PATH" ~/.bashrc
-            then
-                OLD_IFS=$IFS
-                IFS=":"
-                FOUND=false
-
-                for path in $PATH; do
-                    if [[ $path == $LOCAL_BIN_PATH ]]; then FOUND=true; fi
-                done
-
-                IFS=$OLD_IFS
-
-                if [[ $FOUND == false ]]; then echo "export PATH=\$PATH:$LOCAL_BIN_PATH" >> ~/.bashrc; fi
-            fi
-
-            if ! grep -q 'alias dk="docker"' ~/.bashrc; then echo 'alias dk="docker"' >> ~/.bashrc; fi
-            if ! grep -q 'alias dkc="docker compose"' ~/.bashrc; then echo 'alias dkc="docker compose"' >> ~/.bashrc; fi
-
-            exec bash # reload bash
-        fi
-    ;;
-    darwin*) # OSX
-        LOCAL_BIN_PATH=$PWD/$binPath
-
-        if ! grep -q "export PATH=\$PATH:$LOCAL_BIN_PATH" ~/.zshrc
-        then
-            OLD_IFS=$IFS
-            IFS=":"
-            FOUND=false
-
-            for path in $PATH; do
-                if [[ $path == $LOCAL_BIN_PATH ]]; then FOUND=true; fi
-            done
-
-            IFS=$OLD_IFS
-
-            if [[ $FOUND == false ]]; then echo "export PATH=\$PATH:$LOCAL_BIN_PATH" >> ~/.zshrc; fi
-        fi
-
-        if ! grep -q 'alias dk="docker"' ~/.zshrc; then echo 'alias dk="docker"' >> ~/.zshrc; fi
-        if ! grep -q 'alias dkc="docker compose"' ~/.zshrc; then echo 'alias dkc="docker compose"' >> ~/.zshrc; fi
-
-        exec zsh # reload zsh
-    ;;
+# Determine shell config file and shell based on OS
+case $(uname -s | tr '[:upper:]' '[:lower:]') in
+    linux*)
+        [ "$(lsb_release -si | tr '[:upper:]' '[:lower:]')" != "ubuntu" ] && exit 0
+        SHELL_RC=~/.bashrc
+        SHELL_CMD=bash
+        ;;
+    darwin*)
+        SHELL_RC=~/.zshrc
+        SHELL_CMD=zsh
+        ;;
     *)
         echo "Unknown OS"
         exit 1
-    ;;
+        ;;
 esac
+
+LOCAL_BIN_PATH=$PWD/$binPath
+
+# Check if path already exists in PATH
+if ! echo $PATH | tr ':' '\n' | grep -Fxq "$LOCAL_BIN_PATH"; then
+    echo "export PATH=\$PATH:$LOCAL_BIN_PATH" >> "$SHELL_RC"
+fi
+
+# Add docker aliases if not present
+for alias in 'dk="docker"' 'dkc="docker compose"'; do
+    grep -q "alias $alias" "$SHELL_RC" || echo "alias $alias" >> "$SHELL_RC"
+done
+
+# Reload shell
+exec $SHELL_CMD
 
 # sed -i '/alias dk="docker"/d' ~/.bashrc # remove dk alias
 # sed -i '/alias dkc="docker compose"/d' ~/.bashrc # remove dkc alias
-
-exit 0
