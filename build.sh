@@ -1,26 +1,33 @@
 #!/bin/bash
 
-# Definizione degli script wrapper
 STANDARD_WRAPPER='#!/bin/sh
 
-user="-u $(id -u):$(id -g)"
-interactive=""
-command=""
+# detect if in interactive shell
+[ -t 0 ] && interactive="-it "
 
-for arg in "$@"; do
-    case $arg in
-        "--int") interactive="-it";;
-        "--root") user="";;
-        *) command="$command $arg";;
+user="-u $(id -u):$(id -g)"
+
+while [ $# -gt 0 ]
+do
+    case $1 in
+        -i|--int) interactive="-it";;
+        -r|--root) user="";;
+        -p|--port)
+            port="-p $2:$2"
+            shift
+            ;;
+        *) args="$args $1";;
     esac
+
+    shift
 done
 
-docker run --rm $interactive $user -P \
+docker run --rm $interactive $user $port -P \
     -v .:$PWD \
     -w $PWD \
     -e SHELL=/bin/sh \
     %s_local:1.0 \
-    %s $command'
+    %s $args'
 
 OLLAMA_WRAPPER='#!/bin/sh
 
@@ -72,7 +79,6 @@ fi
 
 docker exec -it ollama ollama "$@"'
 
-# Definisci un array associativo per tutti i comandi e le loro configurazioni
 declare -A commands=(
     ["php"]="version=8-alpine;build=true"
     ["node"]="version=lts-alpine;build=true"
@@ -88,10 +94,8 @@ binPath=.bin
 mkdir -p $binPath
 chown $SUDO_USER:$SUDO_USER $binPath
 
-# Build docker images e genera gli script wrapper
 for command in "${!commands[@]}"
 do
-    # Parse command settings
     IFS=';' read -r -a settings <<< "${commands[$command]}"
     build="false"
     version=""
@@ -108,7 +112,6 @@ do
         esac
     done
 
-    # Build docker image se necessario
     if [ "$build" = "true" ]; then
         docker build --no-cache \
             --target "$command" \
@@ -116,10 +119,8 @@ do
             -t "${command}_local:1.0" .
     fi
 
-    # Genera script wrapper
     executablePath=./$binPath/$command
 
-    # Determina quale immagine usare
     if [ -n "$use" ]; then
         image="$use"
     else
