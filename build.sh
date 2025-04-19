@@ -31,23 +31,6 @@ docker run --rm $interactive $user $port -P \
 
 OLLAMA_WRAPPER='#!/bin/sh
 
-if ! command -v nvidia-ctk >/dev/null 2>&1; then
-    echo "nvidia-ctk command not found. Installing NVIDIA Container Toolkit ..."
-
-    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-    | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-    
-    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-    | sed "s#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g" \
-    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-    sudo apt-get update
-    sudo apt-get install -y nvidia-container-toolkit
-    sudo nvidia-ctk runtime configure --runtime=docker
-    sudo systemctl restart docker
-fi
-
-# Show help if no command is provided
 if [ $# -eq 0 ]; then
     echo "Usage: ollama COMMAND"
     echo ""
@@ -64,20 +47,52 @@ if [ $# -eq 0 ]; then
     echo "  cp          Copy a model"
     echo "  rm          Remove a model"
     echo "  help        Help about any command"
+
     exit 0
 fi
 
-if [ "$1" = "serve" ]; then
-    if ! docker ps -q -f name=ollama | grep -q .; then
-        docker run -d --gpus=all -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-    else
-        echo "Ollama service is already running."
+start_ollama_service() {
+    GPU_FLAG=""
+    if command -v nvidia-smi > /dev/null 2>&1; then
+        GPU_FLAG="--gpus=all"
     fi
-    
-    exit 0
-fi
+    docker run -d $GPU_FLAG -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+}
 
-docker exec -it ollama ollama "$@"'
+is_ollama_running() {
+    docker ps -q -f name=ollama | grep -q .
+}
+
+execute_ollama_command() {
+    docker exec -it ollama ollama "$@"
+}
+
+start_and_execute() {
+    echo "Ollama service is not running"
+    read -r -p "Do you want to start the service? (y/n) " answer
+    if [ "$answer" = "y" ]; then
+        start_ollama_service
+        execute_ollama_command "$@"
+    fi
+}
+
+case "$1" in
+    "serve")
+        if is_ollama_running; then
+            echo "Ollama service is already running"
+            exit 0
+        fi
+        
+        start_ollama_service
+        ;;
+    *)
+        if is_ollama_running; then
+            execute_ollama_command "$@"
+        else
+            start_and_execute "$@"
+        fi
+        ;;
+esac'
 
 declare -A commands=(
     ["php"]="version=8-alpine;build=true"
