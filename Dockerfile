@@ -28,5 +28,7 @@ FROM alpine/git:${VERSION} AS git
 RUN git config --global --add safe.directory "*"
 
 FROM python:${VERSION} AS python
+RUN apt-get update && apt-get upgrade -y
+RUN apt-get install -y python3-venv python3-pip
 
 EXPOSE 5173 4173 80 443 8000
