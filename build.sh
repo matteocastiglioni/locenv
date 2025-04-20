@@ -106,7 +106,10 @@ declare -A commands=(
     ["ollama"]="version=;build=false"
 )
 
-binPath=.bin
+binPath="$HOME/.localenvbin"
+
+[ -d "$binPath" ] && rm -rf "$binPath"/*
+
 mkdir -p $binPath
 chown $SUDO_USER:$SUDO_USER $binPath
 
@@ -135,7 +138,7 @@ do
             -t "${command}_local:1.0" .
     fi
 
-    executablePath=./$binPath/$command
+    executablePath=$binPath/$command
 
     if [ -n "$use" ]; then
         image="$use"
@@ -172,12 +175,8 @@ case $(uname -s | tr '[:upper:]' '[:lower:]') in
         ;;
 esac
 
-LOCAL_BIN_PATH=$PWD/$binPath
-
-# Check if path already exists in PATH
-if ! echo $PATH | tr ':' '\n' | grep -Fxq "$LOCAL_BIN_PATH"; then
-    echo "export PATH=\$PATH:$LOCAL_BIN_PATH" >> "$SHELL_RC"
-fi
+# Check if binPath already exists in PATH
+grep -q "export PATH=.*$binPath" "$SHELL_RC" || echo "export PATH=$binPath:\$PATH" >> "$SHELL_RC"
 
 # Add docker aliases if not present
 for alias in 'dk="docker"' 'dkc="docker compose"'; do
@@ -186,6 +185,3 @@ done
 
 # Reload shell
 exec $SHELL_CMD
-
-# sed -i '/alias dk="docker"/d' ~/.bashrc # remove dk alias
-# sed -i '/alias dkc="docker compose"/d' ~/.bashrc # remove dkc alias
