@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ARG VERSION="latest"
 
 FROM php:${VERSION} AS php
@@ -25,10 +27,20 @@ FROM node:${VERSION} AS node
 FROM composer:${VERSION} AS composer
 
 FROM alpine/git:${VERSION} AS git
+ARG GIT_EMAIL
+ARG GIT_USERNAME
+RUN git config --global user.email "$GIT_EMAIL"
+RUN git config --global user.name "$GIT_USERNAME"
 RUN git config --global --add safe.directory "*"
 
 FROM python:${VERSION} AS python
+ARG LOCAL_BIN_PATH
+RUN mkdir -p "$LOCAL_BIN_PATH" && ln -s /usr/local/bin/python "$LOCAL_BIN_PATH/python"
+
+COPY ./python-venv-setup.sh /usr/local/bin/python-venv-setup
+RUN chmod +x /usr/local/bin/python-venv-setup
+
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y python3-venv python3-pip
 
-EXPOSE 5173 4173 80 443 8000
+EXPOSE 80 8080 443 8000 5173 4173 8501
