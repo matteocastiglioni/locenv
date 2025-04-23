@@ -36,7 +36,7 @@ git clone https://github.com/matteocastiglioni/docker-local-environment.git
 cd docker-local-environment
 ```
 
-2. Configure Git environment:
+2. Configure environment:
 ```bash
 cp .env.example .env
 ```
