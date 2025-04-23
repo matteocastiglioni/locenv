@@ -30,7 +30,11 @@ A lightweight Docker-based development environment that provides isolated CLI to
 
 ## Installation
 
-1. Clone this repository
+1. Clone this repository:
+```bash
+git clone https://github.com/matteocastiglioni/docker-local-environment.git
+cd docker-local-environment
+```
 
 2. Configure Git environment:
 ```bash
@@ -52,8 +56,9 @@ The script will:
 - Create executable wrappers in `~/.local/bin` directory
 - Add the `~/.local/bin` directory to your PATH (permanently in `~/.bashrc` or `~/.zshrc`)
 - Add Docker convenience aliases (`dk` for docker and `dkc` for docker compose)
+- Create the `mkvenv` alias for managing Python virtual environments
 - Configure Git with settings from `.env` if present
-- Automatic shell reload after installation
+- Automatically reload the shell after installation
 
 ## Usage
 
@@ -111,36 +116,21 @@ The `ollama` command provides special handling for AI model management:
 
 ### Python Virtual Environment Setup
 
-The repository includes scripts to help manage Python virtual environments:
+The repository includes a script to help manage Python virtual environments:
 
 #### python-venv-setup.sh
 A script to create and configure Python virtual environments:
 ```bash
 # Create a new virtual environment in the current directory
-./python-venv-setup.sh
-```
-
-Features:
-- Creates `.venv` directory in current project
-- Auto-installs required dependencies (python3-venv, pip) if missing
-- Configures Python interpreter symlinks
-- Interactive setup process
-- Provides clear activation/deactivation instructions
-
-#### create-venv-bash-alias.sh
-Creates a system-wide `mkvenv` alias for easy virtual environment setup:
-```bash
-# Install the mkvenv alias
-./create-venv-bash-alias.sh
-
-# Usage after installation
 mkvenv
 ```
 
 Features:
-- Adds permanent alias to `~/.bashrc` or `~/.zshrc`
-- Cross-platform support (Ubuntu/macOS)
-- Automatic shell reload after installation
+- Creates `.venv` directory in the current project
+- Auto-installs required dependencies (python3-venv, pip) if missing
+- Configures Python interpreter symlinks
+- Interactive setup process
+- Provides clear activation/deactivation instructions
 
 ### Ollama Setup Script without Docker
 The `ollama-setup.sh` script is designed for users who want to install Ollama without Docker:
@@ -161,5 +151,5 @@ Features:
 
 For path-related issues, verify that `~/.local/bin` is in your PATH:
 ```bash
-echo $PATH | grep localenvbin
+echo $PATH | grep ~/.local/bin
 ```
