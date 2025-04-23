@@ -1,5 +1,14 @@
 #!/bin/bash
 
+if [ ! -f .env ]; then
+    echo "Error: .env file not found!"
+    exit 1
+else
+    set -o allexport
+    source .env
+    set +o allexport
+fi
+
 STANDARD_WRAPPER='#!/bin/sh
 
 # detect if in interactive shell
@@ -22,12 +31,13 @@ do
     shift
 done
 
-docker run --rm $interactive $user $port -P \
+docker run --rm $interactive $user $port \
+    %s \
     -v .:$PWD \
     -w $PWD \
     -e SHELL=/bin/sh \
     %s_local:1.0 \
-    %s $args'
+    %s'
 
 OLLAMA_WRAPPER='#!/bin/sh
 
@@ -106,12 +116,30 @@ declare -A commands=(
     ["ollama"]="version=;build=false"
 )
 
-binPath="$HOME/.localenvbin"
-
-[ -d "$binPath" ] && rm -rf "$binPath"/*
+binPath="$HOME/.local/bin"
 
 mkdir -p $binPath
 chown $SUDO_USER:$SUDO_USER $binPath
+
+# Function to check if user wants to overwrite
+check_overwrite() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        read -r -p "File $file already exists. Do you want to overwrite it? (y/n) " answer
+        if [ "$answer" != "y" ]; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
+for cmd in "${!commands[@]}"; do
+    if ! check_overwrite "$binPath/$cmd"; then
+        unset "commands[$cmd]"
+    fi
+done
+
+exposed_ports=$(grep -i '^EXPOSE' Dockerfile | sed 's/EXPOSE//' | tr -d '\r' | tr '\n' ' ' | awk '{for(i=1;i<=NF;i++) printf "-p %s:%s ", $i, $i}' | sed 's/ $//')
 
 for command in "${!commands[@]}"
 do
@@ -132,10 +160,21 @@ do
     done
 
     if [ "$build" = "true" ]; then
-        docker build --no-cache \
-            --target "$command" \
-            --build-arg VERSION="$version" \
-            -t "${command}_local:1.0" .
+        if [ "$command" = "git" ]; then
+            docker build --no-cache \
+                --target "$command" \
+                --build-arg VERSION="$version" \
+                --build-arg LOCAL_BIN_PATH="$binPath" \
+                --build-arg GIT_EMAIL="$GIT_EMAIL" \
+                --build-arg GIT_USERNAME="$GIT_USERNAME" \
+                -t "${command}_local:1.0" .
+        else
+            docker build --no-cache \
+                --target "$command" \
+                --build-arg VERSION="$version" \
+                --build-arg LOCAL_BIN_PATH="$binPath" \
+                -t "${command}_local:1.0" .
+        fi
     fi
 
     executablePath=$binPath/$command
@@ -147,11 +186,13 @@ do
     fi
 
     if [ "$command" = "ollama" ]; then
-        printf "%s" "$OLLAMA_WRAPPER" > "$executablePath"
+        printf "$OLLAMA_WRAPPER" > "$executablePath"
+    elif [ "$command" = "python" -o  "$command" = "pip" ]; then
+        printf "$STANDARD_WRAPPER" "$exposed_ports" "$image" "bash -c \"source .venv/bin/activate && $command \$args && deactivate\"" > "$executablePath"
     elif [ "$command" = "git" ]; then
-        printf "$STANDARD_WRAPPER" "$image" "" > "$executablePath"
+        printf "$STANDARD_WRAPPER" "" "$image" "\$args" > "$executablePath"
     else
-        printf "$STANDARD_WRAPPER" "$image" "$command" > "$executablePath"
+        printf "$STANDARD_WRAPPER" "$exposed_ports" "$image" "$command \$args" > "$executablePath"
     fi
 
     chmod +x "$executablePath"
@@ -176,12 +217,16 @@ case $(uname -s | tr '[:upper:]' '[:lower:]') in
 esac
 
 # Check if binPath already exists in PATH
-grep -q "export PATH=.*$binPath" "$SHELL_RC" || echo "export PATH=$binPath:\$PATH" >> "$SHELL_RC"
+# grep -q "export PATH=.*$binPath" "$SHELL_RC" || echo "export PATH=$binPath:\$PATH" >> "$SHELL_RC"
 
 # Add docker aliases if not present
 for alias in 'dk="docker"' 'dkc="docker compose"'; do
     grep -q "alias $alias" "$SHELL_RC" || echo "alias $alias" >> "$SHELL_RC"
 done
+
+sed -i '/alias mkvenv="/d' $SHELL_RC # remove alias
+alias_cmd="alias mkvenv=\"if docker image inspect python_local:1.0 >/dev/null 2>&1; then docker run --rm -it -u \$(id -u):\$(id -g) -v .:\$PWD -w \$PWD -e LOCAL_BIN_PATH=$binPath/python python_local:1.0 bash -c \"/usr/local/bin/python-venv-setup\"; else export LOCAL_BIN_PATH=$binPath/python && . $PWD/python-venv-setup.sh && unset -v LOCAL_BIN_PATH; fi\""
+grep -q "$alias_cmd" "$SHELL_RC" || echo "$alias_cmd" >> "$SHELL_RC"
 
 # Reload shell
 exec $SHELL_CMD
