@@ -9,56 +9,74 @@ A lightweight Docker-based development environment that provides isolated CLI to
 - Interactive and non-interactive modes
 - User permission handling
 - Support for Ubuntu and macOS
+- Python virtual environment management
+- Ollama AI integration
 
 ## Available Tools
 
 - PHP 8 (`php`)
 - Node.js LTS (`node`, `npm`, `npx`) 
 - Composer (`composer`)
-- Git 2.47.2 (`git`)
+- Git 2.47.2 (`git`) with environment configuration
 - Python 3.12 (`python`, `pip`)
 - Ollama AI (`ollama`)
+
+## System Requirements
+
+- Docker Engine 24.0 or later
+- Ubuntu 22.04+ or macOS 12+
+- Bash (Ubuntu) or Zsh (macOS)
+- NVIDIA drivers (optional, for GPU support with Ollama)
 
 ## Installation
 
 1. Clone this repository
-2. Run the build script:
+
+2. Configure Git environment:
+```bash
+cp .env.example .env
+```
+Edit `.env` with your Git configuration:
+```ini
+GIT_EMAIL="your.email@example.com"
+GIT_USERNAME="Your Name"
+```
+
+3. Run the build script:
 ```bash
 ./build.sh
 ```
 
 The script will:
 - Build Docker images for each tool
-- Create executable wrappers in `~/.localenvbin` directory
-- Add the `~/.localenvbin` directory to your PATH (permanently in ~/.bashrc or ~/.zshrc)
+- Create executable wrappers in `~/.local/bin` directory
+- Add the `~/.local/bin` directory to your PATH (permanently in `~/.bashrc` or `~/.zshrc`)
 - Add Docker convenience aliases (`dk` for docker and `dkc` for docker compose)
-
-3. Reload your shell configuration:
-```bash
-source ~/.bashrc  # for Ubuntu
-# or
-source ~/.zshrc   # for macOS
-```
+- Configure Git with settings from `.env` if present
+- Automatic shell reload after installation
 
 ## Usage
 
 After installation, you can use any of the tools directly from your terminal:
 
 ```bash
-# Run PHP
+# PHP
 php --version
+php -S 0.0.0.0:8000
 
-# Use Node.js
+# Node.js
 node --version
 npm install
-npx create-react-app myapp
 
-# Run Python
+# Python
 python script.py
 pip install requests
 
-# Use Ollama AI
-ollama run llama2
+# Commit using configured identity
+git commit -m "Update readme"
+
+# Ollama AI
+ollama run llama3
 ```
 
 ### Command Options
@@ -81,12 +99,12 @@ python --int
 npm --root install
 ```
 
-## Ollama Integration
+### Ollama Command
 
 The `ollama` command provides special handling for AI model management:
 
 - Automatic service management
-- GPU support detection
+- GPU support auto-detection
 - Full command set support (serve, create, run, etc.)
 
 ## Additional Scripts
@@ -104,8 +122,9 @@ A script to create and configure Python virtual environments:
 
 Features:
 - Creates `.venv` directory in current project
-- Installs required dependencies (python3-venv, pip) if missing
+- Auto-installs required dependencies (python3-venv, pip) if missing
 - Configures Python interpreter symlinks
+- Interactive setup process
 - Provides clear activation/deactivation instructions
 
 #### create-venv-bash-alias.sh
@@ -119,13 +138,13 @@ mkvenv
 ```
 
 Features:
-- Adds permanent alias to `.bashrc` or `.zshrc`
+- Adds permanent alias to `~/.bashrc` or `~/.zshrc`
 - Cross-platform support (Ubuntu/macOS)
 - Automatic shell reload after installation
 
-### Ollama Setup Script
+### Ollama Setup Script without Docker
+The `ollama-setup.sh` script is designed for users who want to install Ollama without Docker:
 
-The `ollama-setup.sh` script provides management options for Ollama installation:
 ```bash
 ./ollama-setup.sh
 ```
@@ -138,16 +157,9 @@ Features:
 - Handles system services and cleanup
 - Compatible with Ubuntu systems
 
-## System Requirements
-
-- Docker Engine 24.0 or later
-- Ubuntu 22.04+ or macOS 12+
-- Bash (Ubuntu) or Zsh (macOS)
-- NVIDIA drivers (optional, for GPU support with Ollama)
-
 ## Troubleshooting
 
-For path-related issues, verify that `~/.localenvbin` is in your PATH:
+For path-related issues, verify that `~/.local/bin` is in your PATH:
 ```bash
 echo $PATH | grep localenvbin
 ```
