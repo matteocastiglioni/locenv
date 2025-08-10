@@ -110,10 +110,10 @@ declare -A commands=(
     ["npm"]="version=lts-alpine;build=false;use=node"
     ["npx"]="version=lts-alpine;build=false;use=node"
     ["composer"]="version=lts;build=true"
-    ["git"]="version=2.47.2;build=true"
-    ["python"]="version=3.12-slim;build=true"
-    ["pip"]="version=3.12-slim;build=false;use=python"
-    ["ollama"]="version=;build=false"
+    # ["git"]="version=2.47.2;build=true"
+    # ["python"]="version=3.12-slim;build=true"
+    # ["pip"]="version=3.12-slim;build=false;use=python"
+    # ["ollama"]="version=;build=false"
 )
 
 binPath="$HOME/.local/bin"
@@ -188,7 +188,7 @@ do
     if [ "$command" = "ollama" ]; then
         printf "$OLLAMA_WRAPPER" > "$executablePath"
     elif [ "$command" = "python" -o  "$command" = "pip" ]; then
-        printf "$STANDARD_WRAPPER" "$exposed_ports" "$image" "bash -c \"source .venv/bin/activate && $command \$args && deactivate\"" > "$executablePath"
+        printf "$STANDARD_WRAPPER" "$exposed_ports" "$image" "bash -c \"if [ -d .venv ]; then source .venv/bin/activate && $command \$args && deactivate; else python $args; fi\"" > "$executablePath"
     elif [ "$command" = "git" ]; then
         printf "$STANDARD_WRAPPER" "" "$image" "\$args" > "$executablePath"
     else
