@@ -50,10 +50,10 @@ if [[ $choice == [Yy]* ]]; then
         python -m venv .venv
         echo "Virtual environment created successfully"
 
-        if [ -L ".venv/bin/python" ]; then
-            rm .venv/bin/python
-        fi
-        ln -s ${LOCAL_BIN_PATH:-$(which python)} .venv/bin/python
+        # if [ -L ".venv/bin/python" ]; then
+        #     rm .venv/bin/python
+        # fi
+        # ln -s ${LOCAL_BIN_PATH:-$(which python)} .venv/bin/python
 
         echo -e '\nTo activate the virtual environment, run \033[1;32m"source .venv/bin/activate"\033[0m in \033[1;32m"'$PWD'"\033[0m.'
         echo -e 'To deactivate the virtual environment, run \033[1;32m"deactivate"\033[0m in \033[1;32m"'$PWD'"\033[0m.'
