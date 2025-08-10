@@ -127,7 +127,7 @@ mkvenv
 
 Features:
 - Creates `.venv` directory in the current project
-- Auto-installs required dependencies (python3-venv, pip) if missing
+- Auto-installs required dependencies (python3-venv, python3-pip) if missing
 - Configures Python interpreter symlinks
 - Interactive setup process
 - Provides clear activation/deactivation instructions
