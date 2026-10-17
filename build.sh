@@ -774,8 +774,6 @@ append_shell_line() {
 }
 
 append_shell_line 'export PATH="$HOME/.local/bin:$PATH"'
-append_shell_line 'alias dk="docker"'
-append_shell_line 'alias dkc="docker compose"'
 
 printf '\nInstalled shims in %s:\n' "$BIN_PATH"
 for file in "${selected_files[@]}"; do
