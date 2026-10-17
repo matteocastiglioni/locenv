@@ -1,0 +1,15 @@
+.dockerignore
+.env
+.git
+.gitignore
+.agents
+.claude
+agent
+skills-lock.json
+CLAUDE.md
+AGENTS.md
+*.log
+node_modules
+vendor
+.venv
+__pycache__
